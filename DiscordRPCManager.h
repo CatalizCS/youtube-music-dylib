@@ -4,9 +4,12 @@
 void writeRPCLog(NSString *format, ...);
 #define RPCLog(format, ...) writeRPCLog(format, ##__VA_ARGS__)
 
+extern NSString *const DiscordRPCStatusDidChangeNotification;
+
 @interface DiscordRPCManager : NSObject
 
 @property (nonatomic, readonly) BOOL isConnected;
+@property (nonatomic, readonly) BOOL isConnecting;
 
 + (instancetype)sharedManager;
 

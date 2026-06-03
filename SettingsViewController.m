@@ -209,6 +209,21 @@
         [defaults setBool:YES forKey:@"DiscordRPCShowAlbum"];
     }
     [defaults synchronize];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(statusDidChange)
+                                                 name:DiscordRPCStatusDidChangeNotification
+                                               object:nil];
+}
+
+- (void)statusDidChange {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.tableView reloadData];
+    });
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -260,7 +275,7 @@
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if (section == 0) return 6; // General settings: Enable, Activity, Quick Select, Artwork, Time, Album
+    if (section == 0) return 7; // General settings: Status, Enable, Activity, Quick Select, Artwork, Time, Album
     if (section == 1) return 2; // Discord Credentials
     if (section == 2) return 3; // Help & Links & Logs
     return 0;
@@ -307,13 +322,28 @@
     
     if (indexPath.section == 0) {
         if (indexPath.row == 0) {
+            cell.textLabel.text = @"Connection Status";
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            
+            DiscordRPCManager *manager = [DiscordRPCManager sharedManager];
+            if (manager.isConnected) {
+                cell.detailTextLabel.text = @"Connected";
+                cell.detailTextLabel.textColor = [UIColor systemGreenColor];
+            } else if (manager.isConnecting) {
+                cell.detailTextLabel.text = @"Connecting...";
+                cell.detailTextLabel.textColor = [UIColor systemOrangeColor];
+            } else {
+                cell.detailTextLabel.text = @"Disconnected";
+                cell.detailTextLabel.textColor = [UIColor systemRedColor];
+            }
+        } else if (indexPath.row == 1) {
             cell.textLabel.text = @"Enable Discord RPC";
             if (!self.enabledSwitch) {
                 self.enabledSwitch = [[UISwitch alloc] init];
                 self.enabledSwitch.on = [defaults boolForKey:kDiscordRPCEnabledKey];
             }
             cell.accessoryView = self.enabledSwitch;
-        } else if (indexPath.row == 1) {
+        } else if (indexPath.row == 2) {
             cell.textLabel.text = @"Current Activity";
             cell.selectionStyle = UITableViewCellSelectionStyleDefault;
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -333,28 +363,28 @@
             } else {
                 cell.detailTextLabel.text = options[0];
             }
-        } else if (indexPath.row == 2) {
+        } else if (indexPath.row == 3) {
             cell.textLabel.text = @"Quick Select on Startup";
             if (!self.quickSelectSwitch) {
                 self.quickSelectSwitch = [[UISwitch alloc] init];
                 self.quickSelectSwitch.on = [defaults boolForKey:@"DiscordRPCQuickSelectOnStartup"];
             }
             cell.accessoryView = self.quickSelectSwitch;
-        } else if (indexPath.row == 3) {
+        } else if (indexPath.row == 4) {
             cell.textLabel.text = @"Show Album Artwork";
             if (!self.artworkSwitch) {
                 self.artworkSwitch = [[UISwitch alloc] init];
                 self.artworkSwitch.on = [defaults boolForKey:@"DiscordRPCShowArtwork"];
             }
             cell.accessoryView = self.artworkSwitch;
-        } else if (indexPath.row == 4) {
+        } else if (indexPath.row == 5) {
             cell.textLabel.text = @"Show Elapsed Time";
             if (!self.timeSwitch) {
                 self.timeSwitch = [[UISwitch alloc] init];
                 self.timeSwitch.on = [defaults boolForKey:@"DiscordRPCShowTime"];
             }
             cell.accessoryView = self.timeSwitch;
-        } else if (indexPath.row == 5) {
+        } else if (indexPath.row == 6) {
             cell.textLabel.text = @"Show Album Name";
             if (!self.albumSwitch) {
                 self.albumSwitch = [[UISwitch alloc] init];
@@ -424,7 +454,7 @@
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
     if (indexPath.section == 0) {
-        if (indexPath.row == 1) {
+        if (indexPath.row == 2) {
             // Push ActivityStatusViewController
             ActivityStatusViewController *activityVC = [[ActivityStatusViewController alloc] init];
             [self.navigationController pushViewController:activityVC animated:YES];

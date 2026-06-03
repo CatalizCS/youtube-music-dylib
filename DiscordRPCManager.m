@@ -40,6 +40,8 @@ void writeRPCLog(NSString *format, ...) {
 // Redefine NSLog for all subsequent code in this file to write to our log file
 #define NSLog(format, ...) RPCLog(format, ##__VA_ARGS__)
 
+NSString *const DiscordRPCStatusDidChangeNotification = @"DiscordRPCStatusDidChangeNotification";
+
 #define kDiscordRPCEnabledKey @"DiscordRPCEnabled"
 #define kDiscordRPCTokenKey @"DiscordRPCToken"
 #define kDiscordRPCClientIDKey @"DiscordRPCClientID"
@@ -103,6 +105,7 @@ void writeRPCLog(NSString *format, ...) {
 
     NSLog(@"[DiscordRPC] Connecting to Discord Gateway...");
     self.isConnecting = YES;
+    [[NSNotificationCenter defaultCenter] postNotificationName:DiscordRPCStatusDidChangeNotification object:nil];
 
     // Reset sequence number
     self.lastSequenceNumber = nil;
@@ -135,6 +138,7 @@ void writeRPCLog(NSString *format, ...) {
     self.session = nil;
     self.isConnected = NO;
     self.isConnecting = NO;
+    [[NSNotificationCenter defaultCenter] postNotificationName:DiscordRPCStatusDidChangeNotification object:nil];
 }
 
 - (void)reconnect {
@@ -225,6 +229,7 @@ void writeRPCLog(NSString *format, ...) {
             NSLog(@"[DiscordRPC] Connected to Discord successfully!");
             self.isConnected = YES;
             self.isConnecting = NO;
+            [[NSNotificationCenter defaultCenter] postNotificationName:DiscordRPCStatusDidChangeNotification object:nil];
             // Send pending presence if exists
             if (self.lastTitle) {
                 [self sendPresenceUpdate];
