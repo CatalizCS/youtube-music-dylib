@@ -12,7 +12,7 @@ PACKAGE_VERSION = 1.0.0
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = YTMusicDiscordRPC
-$(TWEAK_NAME)_FILES = Tweak.x DiscordRPCManager.m SettingsViewController.m
+$(TWEAK_NAME)_FILES = Tweak.m DiscordRPCManager.m SettingsViewController.m
 $(TWEAK_NAME)_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 $(TWEAK_NAME)_FRAMEWORKS = UIKit MediaPlayer Foundation
 
