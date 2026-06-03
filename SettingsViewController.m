@@ -1,6 +1,9 @@
 #import "SettingsViewController.h"
 #import "DiscordRPCManager.h"
 
+// Redefine NSLog to log to both system console and file
+#define NSLog(format, ...) RPCLog(format, ##__VA_ARGS__)
+
 #define kDiscordRPCEnabledKey @"DiscordRPCEnabled"
 #define kDiscordRPCTokenKey @"DiscordRPCToken"
 #define kDiscordRPCClientIDKey @"DiscordRPCClientID"

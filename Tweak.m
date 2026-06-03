@@ -4,6 +4,9 @@
 #import "DiscordRPCManager.h"
 #import "SettingsViewController.h"
 
+// Redefine NSLog to log to both system console and file
+#define NSLog(format, ...) RPCLog(format, ##__VA_ARGS__)
+
 // Forward declarations of classes
 @interface YTPlayerViewController : UIViewController
 - (NSString *)currentVideoID;

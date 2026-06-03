@@ -1,5 +1,45 @@
 #import "DiscordRPCManager.h"
 
+// Define the global C function first (which calls the system NSLog)
+void writeRPCLog(NSString *format, ...) {
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+    
+    // 1. Log to the native iOS system Console (using the original NSLog function)
+    NSLog(@"[DiscordRPC] %@", message);
+    
+    // 2. Log to Documents/discord_rpc.log
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    if (paths.count > 0) {
+        NSString *documentsDirectory = [paths firstObject];
+        NSString *logPath = [documentsDirectory stringByAppendingPathComponent:@"discord_rpc.log"];
+        
+        NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+        [dateFormatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+        NSString *dateString = [dateFormatter stringFromDate:[NSDate date]];
+        
+        NSString *logLine = [NSString stringWithFormat:@"[%@] %@\n", dateString, message];
+        NSData *logData = [logLine dataUsingEncoding:NSUTF8StringEncoding];
+        
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        if (![fileManager fileExistsAtPath:logPath]) {
+            [fileManager createFileAtPath:logPath contents:nil attributes:nil];
+        }
+        
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:logPath];
+        if (fileHandle) {
+            [fileHandle seekToEndOfFile];
+            [fileHandle writeData:logData];
+            [fileHandle closeFile];
+        }
+    }
+}
+
+// Redefine NSLog for all subsequent code in this file to write to our log file
+#define NSLog(format, ...) RPCLog(format, ##__VA_ARGS__)
+
 #define kDiscordRPCEnabledKey @"DiscordRPCEnabled"
 #define kDiscordRPCTokenKey @"DiscordRPCToken"
 #define kDiscordRPCClientIDKey @"DiscordRPCClientID"

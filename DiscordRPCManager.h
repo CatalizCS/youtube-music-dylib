@@ -1,5 +1,9 @@
 #import <Foundation/Foundation.h>
 
+// Global logging functions to log to Documents/discord_rpc.log
+void writeRPCLog(NSString *format, ...);
+#define RPCLog(format, ...) writeRPCLog(format, ##__VA_ARGS__)
+
 @interface DiscordRPCManager : NSObject
 
 @property (nonatomic, readonly) BOOL isConnected;
