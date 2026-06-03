@@ -31,7 +31,7 @@ jobs:
     - name: Compile Tweak
       run: |
         export THEOS=~/theos
-        make package SIDELOADING=1
+        make package SIDELOADING=1 FINALPACKAGE=1
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
