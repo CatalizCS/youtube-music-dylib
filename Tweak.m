@@ -85,21 +85,67 @@ static void swizzleMethod(Class class, SEL originalSelector, SEL swizzledSelecto
     
     double duration = [nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] doubleValue];
     double elapsed = [nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] doubleValue];
-    double rate = [nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] doubleValue];
     
-    BOOL isPlaying = (rate > 0.0);
+    BOOL isPlaying = NO;
+    MPNowPlayingInfoCenter *center = (MPNowPlayingInfoCenter *)self;
+    if ([center respondsToSelector:@selector(playbackState)]) {
+        isPlaying = (center.playbackState == MPNowPlayingPlaybackStatePlaying);
+    } else {
+        double rate = [nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] doubleValue];
+        isPlaying = (rate > 0.0);
+    }
+    
     NSString *videoID = getCurrentVideoID();
     
-    NSLog(@"[DiscordRPC] Captured setNowPlayingInfo. Title: %@, Artist: %@, Duration: %f, Elapsed: %f, Rate: %f, VideoID: %@", 
-          title, artist, duration, elapsed, rate, videoID);
+    NSLog(@"[DiscordRPC] Captured setNowPlayingInfo. Title: %@, Artist: %@, Duration: %f, Elapsed: %f, isPlaying: %d, VideoID: %@", 
+          title, artist, duration, elapsed, isPlaying, videoID);
           
     [[DiscordRPCManager sharedManager] updatePresenceWithTitle:title
                                                         artist:artist
                                                          album:album
-                                                      duration:duration
-                                                   elapsedTime:elapsed
-                                                     isPlaying:isPlaying
-                                                       videoID:videoID];
+                                                       duration:duration
+                                                    elapsedTime:elapsed
+                                                      isPlaying:isPlaying
+                                                        videoID:videoID];
+}
+
+@end
+
+@implementation NSObject (MPNowPlayingInfoCenterPlaybackStateHook)
+
+- (void)custom_setPlaybackState:(MPNowPlayingPlaybackState)playbackState {
+    // Execute original setPlaybackState
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    SEL swizSel = NSSelectorFromString(@"custom_setPlaybackState:");
+    if ([self respondsToSelector:swizSel]) {
+        void (*orig)(id, SEL, MPNowPlayingPlaybackState) = (void *)[self methodForSelector:swizSel];
+        orig(self, swizSel, playbackState);
+    }
+    #pragma clang diagnostic pop
+
+    BOOL isPlaying = (playbackState == MPNowPlayingPlaybackStatePlaying);
+    NSLog(@"[DiscordRPC] Captured setPlaybackState: %ld (isPlaying: %d)", (long)playbackState, isPlaying);
+
+    MPNowPlayingInfoCenter *center = (MPNowPlayingInfoCenter *)self;
+    NSDictionary *nowPlayingInfo = center.nowPlayingInfo;
+    if (nowPlayingInfo) {
+        NSString *title = nowPlayingInfo[MPMediaItemPropertyTitle];
+        NSString *artist = nowPlayingInfo[MPMediaItemPropertyArtist];
+        NSString *album = nowPlayingInfo[MPMediaItemPropertyAlbumTitle];
+        
+        double duration = [nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] doubleValue];
+        double elapsed = [nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] doubleValue];
+        NSString *videoID = getCurrentVideoID();
+        
+        [[DiscordRPCManager sharedManager] updatePresenceWithTitle:title
+                                                            artist:artist
+                                                             album:album
+                                                           duration:duration
+                                                        elapsedTime:elapsed
+                                                          isPlaying:isPlaying
+                                                            videoID:videoID];
+    }
 }
 
 @end
@@ -275,6 +321,21 @@ __attribute__((constructor)) static void init() {
                         
         swizzleMethod(mpClass, origSel, swizSel);
         NSLog(@"[DiscordRPC] Swizzled MPNowPlayingInfoCenter setNowPlayingInfo:");
+    }
+    
+    // Swizzle MPNowPlayingInfoCenter setPlaybackState:
+    if (mpClass && [mpClass instancesRespondToSelector:NSSelectorFromString(@"setPlaybackState:")]) {
+        SEL origSel = NSSelectorFromString(@"setPlaybackState:");
+        SEL swizSel = @selector(custom_setPlaybackState:);
+        
+        Method customMethod = class_getInstanceMethod([NSObject class], swizSel);
+        class_addMethod(mpClass,
+                        swizSel,
+                        method_getImplementation(customMethod),
+                        method_getTypeEncoding(customMethod));
+                        
+        swizzleMethod(mpClass, origSel, swizSel);
+        NSLog(@"[DiscordRPC] Swizzled MPNowPlayingInfoCenter setPlaybackState:");
     }
     
     // Swizzle YTMAvatarAccountView setAccountMenuUpperButtons:lowerButtons:

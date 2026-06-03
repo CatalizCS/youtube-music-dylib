@@ -445,6 +445,15 @@ NSString *const DiscordRPCStatusDidChangeNotification = @"DiscordRPCStatusDidCha
             [timestamps setObject:@((long long)startEpochMs) forKey:@"start"];
             [timestamps setObject:@((long long)endEpochMs) forKey:@"end"];
             [activity setObject:timestamps forKey:@"timestamps"];
+        NSMutableArray *buttons = [[NSMutableArray alloc] init];
+        if (self.lastVideoID && self.lastVideoID.length > 0) {
+            [buttons addObject:@{
+                @"label": @"Listen on YouTube Music",
+                @"url": [NSString stringWithFormat:@"https://music.youtube.com/watch?v=%@", self.lastVideoID]
+            }];
+        }
+        if (buttons.count > 0) {
+            [activity setObject:buttons forKey:@"buttons"];
         }
 
         [activities addObject:activity];
