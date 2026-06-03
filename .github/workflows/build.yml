@@ -20,6 +20,9 @@ jobs:
         git clone --recursive https://github.com/theos/theos.git ~/theos
         echo "THEOS=~/theos" >> $GITHUB_ENV
 
+    - name: Install ldid (Signing Tool)
+      run: brew install ldid
+
     - name: Download iOS SDK
       run: |
         rm -rf ~/theos/sdks
