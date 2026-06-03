@@ -13,6 +13,10 @@
 - (id)initWithTitle:(id)title identifier:(id)identifier icon:(id)icon actionBlock:(void (^)(BOOL finished))actionBlock;
 @end
 
+@interface UIView (PrivateAncestor)
+- (UIViewController *)_viewControllerForAncestor;
+@end
+
 // Static pointer to track active YTPlayerViewController
 static __weak YTPlayerViewController *activePlayerViewController = nil;
 
@@ -122,8 +126,8 @@ static void swizzleMethod(Class class, SEL originalSelector, SEL swizzledSelecto
         [nav setModalPresentationStyle:UIModalPresentationFullScreen];
         
         UIViewController *parentVC = nil;
-        if ([self respondsToSelector:NSSelectorFromString(@"_viewControllerForAncestor")]) {
-            parentVC = [self performSelector:NSSelectorFromString(@"_viewControllerForAncestor")];
+        if ([self respondsToSelector:@selector(_viewControllerForAncestor)]) {
+            parentVC = [self _viewControllerForAncestor];
         }
         if (parentVC) {
             [parentVC presentViewController:nav animated:YES completion:nil];
