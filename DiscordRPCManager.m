@@ -220,13 +220,25 @@ NSString *const DiscordRPCStatusDidChangeNotification = @"DiscordRPCStatusDidCha
         [self startHeartbeatWithInterval:heartbeatInterval];
         [self sendIdentify];
     } else if (opCode == 11) { // Heartbeat ACK
-        // Heartbeat acknowledged by server
+        NSLog(@"[DiscordRPC] Received Heartbeat ACK");
     } else if (opCode == 1) { // Heartbeat request from server
+        NSLog(@"[DiscordRPC] Received Heartbeat Request from gateway");
         [self sendHeartbeat];
+    } else if (opCode == 9) { // Invalid Session
+        NSLog(@"[DiscordRPC] Received Invalid Session (Opcode 9). Reconnecting...");
+        [self reconnect];
+    } else if (opCode == 7) { // Reconnect Request
+        NSLog(@"[DiscordRPC] Received Reconnect Request (Opcode 7). Reconnecting...");
+        [self reconnect];
     } else if (opCode == 0) { // Event Dispatch
         NSString *t = payload[@"t"];
+        NSLog(@"[DiscordRPC] Received Event: %@", t);
         if ([t isEqualToString:@"READY"]) {
-            NSLog(@"[DiscordRPC] Connected to Discord successfully!");
+            NSDictionary *d = payload[@"d"];
+            NSDictionary *user = d[@"user"];
+            NSString *username = user[@"username"];
+            NSString *disc = user[@"discriminator"];
+            NSLog(@"[DiscordRPC] Connected successfully! User: %@#%@", username, disc);
             self.isConnected = YES;
             self.isConnecting = NO;
             [[NSNotificationCenter defaultCenter] postNotificationName:DiscordRPCStatusDidChangeNotification object:nil];
@@ -445,16 +457,6 @@ NSString *const DiscordRPCStatusDidChangeNotification = @"DiscordRPCStatusDidCha
             [timestamps setObject:@((long long)startEpochMs) forKey:@"start"];
             [timestamps setObject:@((long long)endEpochMs) forKey:@"end"];
             [activity setObject:timestamps forKey:@"timestamps"];
-        }
-        NSMutableArray *buttons = [[NSMutableArray alloc] init];
-        if (self.lastVideoID && self.lastVideoID.length > 0) {
-            [buttons addObject:@{
-                @"label": @"Listen on YouTube Music",
-                @"url": [NSString stringWithFormat:@"https://music.youtube.com/watch?v=%@", self.lastVideoID]
-            }];
-        }
-        if (buttons.count > 0) {
-            [activity setObject:buttons forKey:@"buttons"];
         }
 
         [activities addObject:activity];
