@@ -9,6 +9,87 @@
 #define kDiscordRPCClientIDKey @"DiscordRPCClientID"
 #define kDefaultClientID @"1134789502930694144"
 
+// --- Custom Log Viewer View Controller ---
+@interface LogViewerViewController : UIViewController
+@end
+
+@implementation LogViewerViewController {
+    UITextView *_textView;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"Discord RPC Logs";
+    self.view.backgroundColor = [UIColor systemBackgroundColor];
+    
+    // Set navigation bar items
+    UIBarButtonItem *refreshBtn = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
+                                                                                target:self
+                                                                                action:@selector(loadLogs)];
+    UIBarButtonItem *clearBtn = [[UIBarButtonItem alloc] initWithTitle:@"Clear"
+                                                                 style:UIBarButtonItemStylePlain
+                                                                target:self
+                                                                action:@selector(clearLogs)];
+    self.navigationItem.rightBarButtonItems = @[refreshBtn, clearBtn];
+    
+    // Create text view
+    _textView = [[UITextView alloc] initWithFrame:self.view.bounds];
+    _textView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _textView.editable = NO;
+    _textView.font = [UIFont fontWithName:@"CourierNewPSMT" size:12.0] ?: [UIFont systemFontOfSize:12.0 weight:UIFontWeightLight];
+    _textView.backgroundColor = [UIColor systemBackgroundColor];
+    _textView.textColor = [UIColor labelColor];
+    _textView.alwaysBounceVertical = YES;
+    [self.view addSubview:_textView];
+    
+    [self loadLogs];
+}
+
+- (void)loadLogs {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    if (paths.count > 0) {
+        NSString *documentsDirectory = [paths firstObject];
+        NSString *logPath = [documentsDirectory stringByAppendingPathComponent:@"discord_rpc.log"];
+        
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        if ([fileManager fileExistsAtPath:logPath]) {
+            NSError *error = nil;
+            NSString *logContent = [NSString stringWithContentsOfFile:logPath encoding:NSUTF8StringEncoding error:&error];
+            if (!error && logContent) {
+                _textView.text = logContent;
+                // Auto scroll to bottom
+                if (logContent.length > 0) {
+                    NSRange range = NSMakeRange(logContent.length - 1, 1);
+                    [_textView scrollRangeToVisible:range];
+                }
+                return;
+            }
+        }
+    }
+    _textView.text = @"No logs found yet.";
+}
+
+- (void)clearLogs {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear Logs"
+                                                                   message:@"Are you sure you want to clear the logs file?"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Clear" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        if (paths.count > 0) {
+            NSString *documentsDirectory = [paths firstObject];
+            NSString *logPath = [documentsDirectory stringByAppendingPathComponent:@"discord_rpc.log"];
+            NSFileManager *fileManager = [NSFileManager defaultManager];
+            if ([fileManager fileExistsAtPath:logPath]) {
+                [fileManager removeItemAtPath:logPath error:nil];
+            }
+        }
+        [self loadLogs];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+@end
+
 // --- Custom Sub-Settings VC for Selecting Activity ---
 @interface ActivityStatusViewController : UITableViewController
 @end
@@ -181,7 +262,7 @@
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (section == 0) return 6; // General settings: Enable, Activity, Quick Select, Artwork, Time, Album
     if (section == 1) return 2; // Discord Credentials
-    if (section == 2) return 2; // Instructions & Links
+    if (section == 2) return 3; // Help & Links & Logs
     return 0;
 }
 
@@ -328,6 +409,9 @@
         } else if (indexPath.row == 1) {
             cell.textLabel.text = @"Discord Developer Portal";
             cell.detailTextLabel.text = @"Open Link";
+        } else if (indexPath.row == 2) {
+            cell.textLabel.text = @"View Logs";
+            cell.detailTextLabel.text = @"Show Log File";
         }
     }
     
@@ -354,6 +438,10 @@
             // Dev portal URL
             NSURL *url = [NSURL URLWithString:@"https://discord.com/developers/applications"];
             [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+        } else if (indexPath.row == 2) {
+            // Push LogViewerViewController
+            LogViewerViewController *logVC = [[LogViewerViewController alloc] init];
+            [self.navigationController pushViewController:logVC animated:YES];
         }
     }
 }
