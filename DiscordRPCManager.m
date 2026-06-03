@@ -54,6 +54,7 @@ void writeRPCLog(NSString *format, ...) {
 @property (nonatomic, strong) NSNumber *lastSequenceNumber;
 @property (nonatomic, assign) BOOL isConnected;
 @property (nonatomic, assign) BOOL isConnecting;
+@property (nonatomic, assign) double lastSentTime; // Tracks the last presence update send time
 
 // Cache last track info
 @property (nonatomic, strong) NSString *lastTitle;
@@ -83,6 +84,7 @@ void writeRPCLog(NSString *format, ...) {
     if (self) {
         _isConnected = NO;
         _isConnecting = NO;
+        _lastSentTime = 0.0;
     }
     return self;
 }
@@ -303,6 +305,8 @@ void writeRPCLog(NSString *format, ...) {
         return;
     }
 
+    BOOL isTrackChange = ![title isEqualToString:self.lastTitle];
+
     self.lastTitle = title;
     self.lastArtist = artist;
     self.lastAlbum = album;
@@ -330,13 +334,23 @@ void writeRPCLog(NSString *format, ...) {
         return;
     }
 
-    // Debounce the presence updates by 1.5 seconds to prevent rate limiting
-    [self.debounceTimer invalidate];
-    self.debounceTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
-                                                          target:self
-                                                        selector:@selector(sendPresenceUpdate)
-                                                        userInfo:nil
-                                                         repeats:NO];
+    double now = [[NSDate date] timeIntervalSince1970];
+    double timeSinceLastUpdate = now - self.lastSentTime;
+
+    if (isTrackChange && timeSinceLastUpdate >= 3.0) {
+        // Track changed and we haven't updated recently -> update immediately!
+        [self.debounceTimer invalidate];
+        self.debounceTimer = nil;
+        [self sendPresenceUpdate];
+    } else {
+        // Debounce to prevent rate-limit
+        [self.debounceTimer invalidate];
+        self.debounceTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
+                                                              target:self
+                                                            selector:@selector(sendPresenceUpdate)
+                                                            userInfo:nil
+                                                             repeats:NO];
+    }
 }
 
 - (void)sendPresenceUpdate {
@@ -345,6 +359,8 @@ void writeRPCLog(NSString *format, ...) {
     // Invalidate the timer since we are performing the update now
     [self.debounceTimer invalidate];
     self.debounceTimer = nil;
+
+    self.lastSentTime = [[NSDate date] timeIntervalSince1970];
 
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *clientID = [defaults stringForKey:kDiscordRPCClientIDKey];
