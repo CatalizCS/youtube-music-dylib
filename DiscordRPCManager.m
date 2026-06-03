@@ -109,6 +109,7 @@ void writeRPCLog(NSString *format, ...) {
                                                  delegate:self
                                             delegateQueue:[NSOperationQueue mainQueue]];
     self.webSocketTask = [self.session webSocketTaskWithURL:gatewayURL];
+    self.webSocketTask.maximumMessageSize = 10485760; // 10MB for large READY payloads
     [self.webSocketTask resume];
 
     [self receiveMessage];
