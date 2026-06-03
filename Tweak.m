@@ -154,6 +154,93 @@ static void swizzleMethod(Class class, SEL originalSelector, SEL swizzledSelecto
 
 @end
 
+static void showStartupActivityPicker() {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    BOOL enabled = [defaults boolForKey:@"DiscordRPCEnabled"];
+    if (!enabled) return;
+    
+    // Check if quick select is enabled (defaults to YES)
+    if ([defaults objectForKey:@"DiscordRPCQuickSelectOnStartup"] != nil) {
+        if (![defaults boolForKey:@"DiscordRPCQuickSelectOnStartup"]) {
+            return;
+        }
+    }
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        UIWindow *keyWindow = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
+                    UIWindowScene *windowScene = (UIWindowScene *)scene;
+                    for (UIWindow *window in windowScene.windows) {
+                        if (window.isKeyWindow) {
+                            keyWindow = window;
+                            break;
+                        }
+                    }
+                }
+                if (keyWindow) break;
+            }
+        }
+        if (!keyWindow) {
+            keyWindow = [UIApplication sharedApplication].keyWindow;
+        }
+        
+        UIViewController *rootVC = keyWindow.rootViewController;
+        if (!rootVC) return;
+        
+        // Find top view controller
+        UIViewController *topVC = rootVC;
+        while (topVC.presentedViewController) {
+            topVC = topVC.presentedViewController;
+        }
+        
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Discord RPC"
+                                                                       message:@"Chọn nhanh hoạt động của bạn:"
+                                                                preferredStyle:UIAlertControllerStyleActionSheet];
+                                                                
+        NSArray *options = @[
+            @"🎵 Normal (Chỉ nghe nhạc)",
+            @"🚗 Commuting (Đang đi đường)",
+            @"🏃 Jogging (Đang chạy bộ)",
+            @"💤 Chilling (Đang thư giãn)",
+            @"📚 Studying (Đang học bài)",
+            @"🎮 Gaming (Đang chơi game)",
+            @"🏋️ Working Out (Đang tập thể dục)"
+        ];
+        
+        for (NSInteger i = 0; i < options.count; i++) {
+            NSString *option = options[i];
+            [alert addAction:[UIAlertAction actionWithTitle:option
+                                                      style:UIAlertActionStyleDefault
+                                                    handler:^(UIAlertAction * _Nonnull action) {
+                [defaults setInteger:i forKey:@"DiscordRPCActivityStatus"];
+                [defaults synchronize];
+                NSLog(@"[DiscordRPC] Startup activity set to: %ld", (long)i);
+                
+                if ([DiscordRPCManager sharedManager].isConnected) {
+                    [[DiscordRPCManager sharedManager] sendPresenceUpdate];
+                } else {
+                    [[DiscordRPCManager sharedManager] connect];
+                }
+            }]];
+        }
+        
+        [alert addAction:[UIAlertAction actionWithTitle:@"Huỷ"
+                                                  style:UIAlertActionStyleCancel
+                                                handler:nil]];
+                                                
+        // Handle iPad popover
+        if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+            alert.popoverPresentationController.sourceView = topVC.view;
+            alert.popoverPresentationController.sourceRect = CGRectMake(topVC.view.bounds.size.width / 2.0, topVC.view.bounds.size.height / 2.0, 1.0, 1.0);
+            alert.popoverPresentationController.permittedArrowDirections = 0;
+        }
+        
+        [topVC presentViewController:alert animated:YES completion:nil];
+    });
+}
+
 // Constructor function run on dylib load
 __attribute__((constructor)) static void init() {
     NSLog(@"[DiscordRPC] Loading dylib...");
@@ -206,12 +293,24 @@ __attribute__((constructor)) static void init() {
         NSLog(@"[DiscordRPC] Swizzled YTMAvatarAccountView setAccountMenuUpperButtons:lowerButtons:");
     }
     
-    // Auto-connect on start if RPC is enabled
+    // Auto-connect on start if RPC is enabled and show startup picker
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     BOOL enabled = [defaults boolForKey:@"DiscordRPCEnabled"];
     if (enabled) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [[DiscordRPCManager sharedManager] connect];
+            
+            if ([UIApplication sharedApplication].keyWindow) {
+                showStartupActivityPicker();
+            } else {
+                __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                                  object:nil
+                                                                   queue:[NSOperationQueue mainQueue]
+                                                              usingBlock:^(NSNotification * _Nonnull note) {
+                    showStartupActivityPicker();
+                    [[NSNotificationCenter defaultCenter] removeObserver:observer];
+                }];
+            }
         });
     }
     

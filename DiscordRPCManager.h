@@ -13,6 +13,7 @@ void writeRPCLog(NSString *format, ...);
 - (void)connect;
 - (void)disconnect;
 - (void)reconnect;
+- (void)sendPresenceUpdate;
 
 - (void)updatePresenceWithTitle:(NSString *)title 
                          artist:(NSString *)artist 

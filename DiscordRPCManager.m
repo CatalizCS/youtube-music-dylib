@@ -50,6 +50,7 @@ void writeRPCLog(NSString *format, ...) {
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSURLSessionWebSocketTask *webSocketTask;
 @property (nonatomic, strong) NSTimer *heartbeatTimer;
+@property (nonatomic, strong) NSTimer *debounceTimer; // Timer to throttle fast skips
 @property (nonatomic, strong) NSNumber *lastSequenceNumber;
 @property (nonatomic, assign) BOOL isConnected;
 @property (nonatomic, assign) BOOL isConnecting;
@@ -314,6 +315,8 @@ void writeRPCLog(NSString *format, ...) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     BOOL enabled = [defaults boolForKey:kDiscordRPCEnabledKey];
     if (!enabled) {
+        [self.debounceTimer invalidate];
+        self.debounceTimer = nil;
         if (self.isConnected) {
             [self disconnect];
         }
@@ -321,20 +324,47 @@ void writeRPCLog(NSString *format, ...) {
     }
 
     if (!self.isConnected) {
+        [self.debounceTimer invalidate];
+        self.debounceTimer = nil;
         [self connect];
         return;
     }
 
-    [self sendPresenceUpdate];
+    // Debounce the presence updates by 1.5 seconds to prevent rate limiting
+    [self.debounceTimer invalidate];
+    self.debounceTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
+                                                          target:self
+                                                        selector:@selector(sendPresenceUpdate)
+                                                        userInfo:nil
+                                                         repeats:NO];
 }
 
 - (void)sendPresenceUpdate {
     if (!self.isConnected) return;
 
+    // Invalidate the timer since we are performing the update now
+    [self.debounceTimer invalidate];
+    self.debounceTimer = nil;
+
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     NSString *clientID = [defaults stringForKey:kDiscordRPCClientIDKey];
     if (!clientID || clientID.length == 0) {
         clientID = kDefaultClientID;
+    }
+
+    BOOL showArtwork = YES;
+    if ([defaults objectForKey:@"DiscordRPCShowArtwork"]) {
+        showArtwork = [defaults boolForKey:@"DiscordRPCShowArtwork"];
+    }
+
+    BOOL showTime = YES;
+    if ([defaults objectForKey:@"DiscordRPCShowTime"]) {
+        showTime = [defaults boolForKey:@"DiscordRPCShowTime"];
+    }
+
+    BOOL showAlbum = YES;
+    if ([defaults objectForKey:@"DiscordRPCShowAlbum"]) {
+        showAlbum = [defaults boolForKey:@"DiscordRPCShowAlbum"];
     }
 
     NSMutableArray *activities = [[NSMutableArray alloc] init];
@@ -350,25 +380,41 @@ void writeRPCLog(NSString *format, ...) {
         if (!self.lastIsPlaying) {
             artistState = [NSString stringWithFormat:@"%@ (Paused)", artistState];
         }
+        
+        NSInteger statusIndex = [defaults integerForKey:@"DiscordRPCActivityStatus"];
+        NSArray *statusSuffixes = @[
+            @"",
+            @" | 🚗 Đang đi đường",
+            @" | 🏃 Đang chạy bộ",
+            @" | 💤 Đang thư giãn",
+            @" | 📚 Đang học bài",
+            @" | 🎮 Đang chơi game",
+            @" | 🏋️ Đang tập thể dục"
+        ];
+        NSString *suffix = @"";
+        if (statusIndex >= 0 && statusIndex < statusSuffixes.count) {
+            suffix = statusSuffixes[statusIndex];
+        }
+        artistState = [NSString stringWithFormat:@"%@%@", artistState, suffix];
         [activity setObject:artistState forKey:@"state"];
 
         NSMutableDictionary *assets = [[NSMutableDictionary alloc] init];
-        if (self.lastVideoID && self.lastVideoID.length > 0) {
+        if (showArtwork && self.lastVideoID && self.lastVideoID.length > 0) {
             NSString *thumbURL = [NSString stringWithFormat:@"https://img.youtube.com/vi/%@/hqdefault.jpg", self.lastVideoID];
             [assets setObject:thumbURL forKey:@"large_image"];
         } else {
-            // Default image asset if we don't have video ID
+            // Default image asset if artwork is disabled or unavailable
             [assets setObject:@"ytmusic_logo" forKey:@"large_image"];
         }
         
-        if (self.lastAlbum && self.lastAlbum.length > 0) {
+        if (showAlbum && self.lastAlbum && self.lastAlbum.length > 0) {
             [assets setObject:self.lastAlbum forKey:@"large_text"];
         } else {
             [assets setObject:self.lastIsPlaying ? @"Listening" : @"Paused" forKey:@"large_text"];
         }
         [activity setObject:assets forKey:@"assets"];
 
-        if (self.lastIsPlaying && self.lastDuration > 0) {
+        if (showTime && self.lastIsPlaying && self.lastDuration > 0) {
             NSMutableDictionary *timestamps = [[NSMutableDictionary alloc] init];
             // Timestamps must be in UTC milliseconds epoch
             double currentEpochMs = [[NSDate date] timeIntervalSince1970] * 1000.0;

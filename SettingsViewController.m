@@ -9,9 +9,79 @@
 #define kDiscordRPCClientIDKey @"DiscordRPCClientID"
 #define kDefaultClientID @"1134789502930694144"
 
+// --- Custom Sub-Settings VC for Selecting Activity ---
+@interface ActivityStatusViewController : UITableViewController
+@end
+
+@implementation ActivityStatusViewController {
+    NSArray *_options;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"Choose Activity Status";
+    _options = @[
+        @"🎵 Normal (Chỉ nghe nhạc)",
+        @"🚗 Commuting (Đang đi đường)",
+        @"🏃 Jogging (Đang chạy bộ)",
+        @"💤 Chilling (Đang thư giãn)",
+        @"📚 Studying (Đang học bài)",
+        @"🎮 Gaming (Đang chơi game)",
+        @"🏋️ Working Out (Đang tập thể dục)"
+    ];
+    self.tableView.tableFooterView = [[UIView alloc] init];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return _options.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *cellId = @"OptionCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellId];
+    }
+    
+    cell.textLabel.text = _options[indexPath.row];
+    
+    NSInteger currentStatus = [[NSUserDefaults standardUserDefaults] integerForKey:@"DiscordRPCActivityStatus"];
+    if (indexPath.row == currentStatus) {
+        cell.accessoryType = UITableViewCellAccessoryCheckmark;
+    } else {
+        cell.accessoryType = UITableViewCellAccessoryNone;
+    }
+    
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    
+    [[NSUserDefaults standardUserDefaults] setInteger:indexPath.row forKey:@"DiscordRPCActivityStatus"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    
+    [self.tableView reloadData];
+    
+    // Update presence immediately without full reconnection if connected
+    if ([DiscordRPCManager sharedManager].isConnected) {
+        [[DiscordRPCManager sharedManager] sendPresenceUpdate];
+    } else {
+        [[DiscordRPCManager sharedManager] connect];
+    }
+    
+    // Pop back to main settings
+    [self.navigationController popViewControllerAnimated:YES];
+}
+@end
+
 @interface SettingsViewController ()
 
 @property (nonatomic, strong) UISwitch *enabledSwitch;
+@property (nonatomic, strong) UISwitch *quickSelectSwitch;
+@property (nonatomic, strong) UISwitch *artworkSwitch;
+@property (nonatomic, strong) UISwitch *timeSwitch;
+@property (nonatomic, strong) UISwitch *albumSwitch;
 @property (nonatomic, strong) UITextField *tokenField;
 @property (nonatomic, strong) UITextField *clientIDField;
 
@@ -39,6 +109,30 @@
     
     // Register delegate and dataSource if needed (done automatically by UITableViewController)
     self.tableView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
+
+    // Initialize settings defaults if first run
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults objectForKey:kDiscordRPCEnabledKey] == nil) {
+        [defaults setBool:NO forKey:kDiscordRPCEnabledKey];
+    }
+    if ([defaults objectForKey:@"DiscordRPCQuickSelectOnStartup"] == nil) {
+        [defaults setBool:YES forKey:@"DiscordRPCQuickSelectOnStartup"];
+    }
+    if ([defaults objectForKey:@"DiscordRPCShowArtwork"] == nil) {
+        [defaults setBool:YES forKey:@"DiscordRPCShowArtwork"];
+    }
+    if ([defaults objectForKey:@"DiscordRPCShowTime"] == nil) {
+        [defaults setBool:YES forKey:@"DiscordRPCShowTime"];
+    }
+    if ([defaults objectForKey:@"DiscordRPCShowAlbum"] == nil) {
+        [defaults setBool:YES forKey:@"DiscordRPCShowAlbum"];
+    }
+    [defaults synchronize];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self.tableView reloadData];
 }
 
 - (void)closeButtonTapped {
@@ -51,6 +145,10 @@
     
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setBool:self.enabledSwitch.on forKey:kDiscordRPCEnabledKey];
+    [defaults setBool:self.quickSelectSwitch.on forKey:@"DiscordRPCQuickSelectOnStartup"];
+    [defaults setBool:self.artworkSwitch.on forKey:@"DiscordRPCShowArtwork"];
+    [defaults setBool:self.timeSwitch.on forKey:@"DiscordRPCShowTime"];
+    [defaults setBool:self.albumSwitch.on forKey:@"DiscordRPCShowAlbum"];
     [defaults setObject:self.tokenField.text forKey:kDiscordRPCTokenKey];
     [defaults setObject:self.clientIDField.text forKey:kDiscordRPCClientIDKey];
     [defaults synchronize];
@@ -81,7 +179,7 @@
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if (section == 0) return 1; // General settings
+    if (section == 0) return 6; // General settings: Enable, Activity, Quick Select, Artwork, Time, Album
     if (section == 1) return 2; // Discord Credentials
     if (section == 2) return 2; // Instructions & Links
     return 0;
@@ -134,6 +232,54 @@
                 self.enabledSwitch.on = [defaults boolForKey:kDiscordRPCEnabledKey];
             }
             cell.accessoryView = self.enabledSwitch;
+        } else if (indexPath.row == 1) {
+            cell.textLabel.text = @"Current Activity";
+            cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            
+            NSInteger currentStatus = [defaults integerForKey:@"DiscordRPCActivityStatus"];
+            NSArray *options = @[
+                @"🎵 Normal (Chỉ nghe nhạc)",
+                @"🚗 Commuting (Đang đi đường)",
+                @"🏃 Jogging (Đang chạy bộ)",
+                @"💤 Chilling (Đang thư giãn)",
+                @"📚 Studying (Đang học bài)",
+                @"🎮 Gaming (Đang chơi game)",
+                @"🏋️ Working Out (Đang tập thể dục)"
+            ];
+            if (currentStatus >= 0 && currentStatus < options.count) {
+                cell.detailTextLabel.text = options[currentStatus];
+            } else {
+                cell.detailTextLabel.text = options[0];
+            }
+        } else if (indexPath.row == 2) {
+            cell.textLabel.text = @"Quick Select on Startup";
+            if (!self.quickSelectSwitch) {
+                self.quickSelectSwitch = [[UISwitch alloc] init];
+                self.quickSelectSwitch.on = [defaults boolForKey:@"DiscordRPCQuickSelectOnStartup"];
+            }
+            cell.accessoryView = self.quickSelectSwitch;
+        } else if (indexPath.row == 3) {
+            cell.textLabel.text = @"Show Album Artwork";
+            if (!self.artworkSwitch) {
+                self.artworkSwitch = [[UISwitch alloc] init];
+                self.artworkSwitch.on = [defaults boolForKey:@"DiscordRPCShowArtwork"];
+            }
+            cell.accessoryView = self.artworkSwitch;
+        } else if (indexPath.row == 4) {
+            cell.textLabel.text = @"Show Elapsed Time";
+            if (!self.timeSwitch) {
+                self.timeSwitch = [[UISwitch alloc] init];
+                self.timeSwitch.on = [defaults boolForKey:@"DiscordRPCShowTime"];
+            }
+            cell.accessoryView = self.timeSwitch;
+        } else if (indexPath.row == 5) {
+            cell.textLabel.text = @"Show Album Name";
+            if (!self.albumSwitch) {
+                self.albumSwitch = [[UISwitch alloc] init];
+                self.albumSwitch.on = [defaults boolForKey:@"DiscordRPCShowAlbum"];
+            }
+            cell.accessoryView = self.albumSwitch;
         }
     } else if (indexPath.section == 1) {
         if (indexPath.row == 0) {
@@ -193,7 +339,13 @@
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
-    if (indexPath.section == 2) {
+    if (indexPath.section == 0) {
+        if (indexPath.row == 1) {
+            // Push ActivityStatusViewController
+            ActivityStatusViewController *activityVC = [[ActivityStatusViewController alloc] init];
+            [self.navigationController pushViewController:activityVC animated:YES];
+        }
+    } else if (indexPath.section == 2) {
         if (indexPath.row == 0) {
             // Guide URL
             NSURL *url = [NSURL URLWithString:@"https://pcstrike.com/how-to-get-discord-token/"];
