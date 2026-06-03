@@ -445,6 +445,7 @@ NSString *const DiscordRPCStatusDidChangeNotification = @"DiscordRPCStatusDidCha
             [timestamps setObject:@((long long)startEpochMs) forKey:@"start"];
             [timestamps setObject:@((long long)endEpochMs) forKey:@"end"];
             [activity setObject:timestamps forKey:@"timestamps"];
+        }
         NSMutableArray *buttons = [[NSMutableArray alloc] init];
         if (self.lastVideoID && self.lastVideoID.length > 0) {
             [buttons addObject:@{
