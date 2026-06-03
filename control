@@ -1,0 +1,9 @@
+Package: com.tama.ytmusicdiscordrpc
+Name: YTMusicDiscordRPC
+Depends: mobilesubstrate
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Discord Rich Presence for YouTube Music iOS app (supports sideloading).
+Maintainer: Tama
+Author: Tama
+Section: Tweaks
