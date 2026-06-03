@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Theos
       run: |
@@ -30,7 +30,7 @@ jobs:
         make package SIDELOADING=1
         
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: YTMusicDiscordRPC-Dylib
         path: .theos/obj/YTMusicDiscordRPC.dylib
